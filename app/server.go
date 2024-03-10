@@ -29,14 +29,14 @@ type Response struct {
 func (r Response) joinHeaders() string {
 	str := ""
 	for k, v := range r.Headers {
-		str += fmt.Sprintf("%v: %v\r\n\r\n", k, v)
+		str += fmt.Sprintf("%v: %v\r\n", k, v)
 	}
 	return str
 }
 
 func (r Response) Bytes() []byte {
 	return []byte(
-		fmt.Sprintf("HTTP/1.1 %v %v\r\n\r\n%v%v", r.Status, statusMessages[r.Status], 
+		fmt.Sprintf("HTTP/1.1 %v %v\r\n%v\r\n%v", r.Status, statusMessages[r.Status], 
 		r.joinHeaders(), r.Body,
 	))
 }
