@@ -36,9 +36,9 @@ func (r Response) joinHeaders() string {
 
 func (r Response) Bytes() []byte {
 	return []byte(
-		fmt.Sprintf("HTTP/1.1 %v %v\r\n%v\r\n%v", r.Status, statusMessages[r.Status], 
-		r.joinHeaders(), r.Body,
-	))
+		fmt.Sprintf("HTTP/1.1 %v %v\r\n%v\r\n%v", r.Status, statusMessages[r.Status],
+			r.joinHeaders(), r.Body,
+		))
 }
 
 type HTTPError struct {
@@ -102,6 +102,8 @@ func handleConnection(conn net.Conn) {
 		conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
 	} else if idx := strings.Index(req.Path, "echo/"); idx != -1 {
 		conn.Write(NewResponse(200, req.Path[idx+5:], map[string]string{"Content-Type": "text/plain"}).Bytes())
+	} else if strings.Contains(req.Path, "/user-agent") {
+		conn.Write(NewResponse(200, req.Headers["User-Agent"],map[string]string{"Content-Type": "text/plain"}).Bytes())
 	} else {
 		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 	}
