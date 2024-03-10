@@ -117,10 +117,12 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println("Server Started")
-	connection, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
+	for {
+		connection, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		go handleConnection(connection)
 	}
-	handleConnection(connection)
 }
