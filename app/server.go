@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -24,6 +25,15 @@ type Response struct {
 	Status  int
 	Headers map[string]string
 	Body    string
+}
+
+func NewResponse(status int, content string, headers map[string]string) Response {
+	resp := Response{Status: status, Headers: headers}
+	if content != "" {
+		resp.Headers["Content-Length"] = strconv.Itoa(len(content))
+	}
+	resp.Body = content
+	return resp
 }
 
 func (r Response) joinHeaders() string {
@@ -51,14 +61,6 @@ func (err HTTPError) Error() string {
 	return fmt.Sprintf("HTTP/1.1 %v %v\r\n\r\n", err.Status, err.StatusMessage)
 }
 
-func NewResponse(status int, content string, headers map[string]string) Response {
-	resp := Response{Status: status, Headers: headers}
-	if content != "" {
-		resp.Headers["Content-Length"] = strconv.Itoa(len(content))
-	}
-	resp.Body = content
-	return resp
-}
 
 func ParseRequest(conn net.Conn) (*Request, error) {
 	req := &Request{Headers: map[string]string{}}
@@ -91,7 +93,7 @@ func ParseRequest(conn net.Conn) (*Request, error) {
 	return req, nil
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, directory string) {
 	defer conn.Close()
 	req, err := ParseRequest(conn)
 	if err != nil {
@@ -103,14 +105,34 @@ func handleConnection(conn net.Conn) {
 	} else if idx := strings.Index(req.Path, "echo/"); idx != -1 {
 		conn.Write(NewResponse(200, req.Path[idx+5:], map[string]string{"Content-Type": "text/plain"}).Bytes())
 	} else if strings.Contains(req.Path, "/user-agent") {
-		conn.Write(NewResponse(200, req.Headers["User-Agent"],map[string]string{"Content-Type": "text/plain"}).Bytes())
+		conn.Write(NewResponse(200, req.Headers["User-Agent"], map[string]string{"Content-Type": "text/plain"}).Bytes())
+	} else if idx := strings.Index(req.Path, "/files"); idx != -1 {
+		dirFs := os.DirFS(directory)
+		fileName := req.Path[idx+7:]
+		file, err := dirFs.Open(fileName)
+		if err != nil {
+			conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+			return
+		}
+		defer file.Close()
+		fileData, err := io.ReadAll(file)
+		if err != nil {
+			conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+			return
+		}
+		respHeaders := []byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %v\r\n\r\n", len(fileData)))
+		resp := append(append([]byte{},respHeaders...),fileData...)
+		conn.Write(resp)
 	} else {
 		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 	}
 }
 
 func main() {
-
+	var directory string
+	if len(os.Args) == 3 {
+		directory = os.Args[2]
+	}
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
@@ -123,6 +145,6 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
-		go handleConnection(connection)
+		go handleConnection(connection, directory)
 	}
 }
